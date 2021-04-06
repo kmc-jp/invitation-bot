@@ -11,6 +11,7 @@ import (
 	"os"
 
 	"cloud.google.com/go/pubsub"
+	"github.com/pkg/errors"
 	"github.com/slack-go/slack"
 )
 
@@ -47,8 +48,6 @@ type Message struct {
 	Attachments  []attachment `json:"attachments"`
 }
 
-var config = setup()
-
 func InviteAllMCG(w http.ResponseWriter, r *http.Request) {
 
 	bodyBytes, err := ioutil.ReadAll(r.Body)
@@ -79,14 +78,22 @@ func InviteAllMCG(w http.ResponseWriter, r *http.Request) {
 		log.Fatalf("empty text in form")
 	}
 
-	msg := r.Form["text"][0]
+	// msg := r.Form["text"][0]
+	channelID := r.Form["channel_id"][0]
+	projectID := "mcg-invitation"
 	topicName := "triger-invbot"
-	m := &pubsub.Message{Data: []byte(msg)}
+	client, err := pubsub.NewClient(r.Context(), projectID)
+	if err != nil {
+		log.Fatalf("pubsub.NewClient: %v", err)
+	}
+	m := &pubsub.Message{Data: []byte(channelID)}
+	fmt.Printf("%#+v\n", r.Form)
+	fmt.Printf("%#+v\n", m)
 	client.Topic(topicName).Publish(r.Context(), m)
 
 	res := &Message{
 		ResponseType: "in_channel",
-		Text:         fmt.Sprintf("Trying to invite"),
+		Text:         fmt.Sprintf("MCGを招待します"),
 		Attachments:  []attachment{},
 	}
 	w.Header().Set("Content-Type", "application/json")
@@ -99,9 +106,37 @@ type PubSubMessage struct {
 	Data []byte `json:"data"`
 }
 
+func resultMessage(users []slack.User, channels []slack.Channel) string {
+	msg := "完了!\nMCGs: "
+	for i, user := range users {
+		if i != 0 {
+			msg += ", "
+		}
+		msg += user.Name
+	}
+	msg += "\nChannels: "
+	for i, channel := range channels {
+		if i != 0 {
+			msg += ", "
+		}
+		msg += channel.Name
+	}
+	return msg
+}
 func InvitePubSub(ctx context.Context, m PubSubMessage) error {
-	log.Printf("Invite")
+	postChannel := string(m.Data)
 	api := slack.New(config.Token, slack.OptionDebug(true))
-	inviteAllMCG(context.Background(), api, config.Prefix)
+	postChannel = "C03KEQBQS"
+	err := postMessage(api, ctx, postChannel, "MCGの招待を開始します")
+	log.Printf("Invite (%s)", postChannel)
+	users, channels, err := inviteAllMCG(ctx, api, config.Prefix)
+	if err != nil {
+		return errors.Wrapf(err, "inviteAllMCG")
+	}
+	msg := resultMessage(users, channels)
+	err = postMessage(api, ctx, postChannel, msg)
+	if err != nil {
+		return errors.Wrapf(err, "postMessage")
+	}
 	return nil
 }
