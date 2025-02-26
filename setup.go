@@ -1,4 +1,4 @@
-package invbot
+package main
 
 type configuration struct {
 	Token  string `json:"SLACK_TOKEN" required:"true"`

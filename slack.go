@@ -1,4 +1,4 @@
-package invbot
+package main
 
 import (
 	"context"
@@ -30,16 +30,16 @@ func getPrefixChannel(ctx context.Context, api *slack.Client, prefix string) ([]
 		res := make([]slack.Channel, 0)
 		channels, new_cursor, err := api.GetConversationsContext(ctx,
 			&slack.GetConversationsParameters{
-				ExcludeArchived: "true",
-				Limit: 999,
-				Cursor: cursor,
+				ExcludeArchived: true,
+				Limit:           999,
+				Cursor:          cursor,
 			})
 		cursor = new_cursor
 		if err != nil {
 			return nil, errors.Wrapf(err, "GetChannels")
 		}
 		for _, channel := range channels {
-			if ! channel.IsChannel {
+			if !channel.IsChannel {
 				continue
 			}
 			if strings.HasPrefix(channel.Name, prefix) {
